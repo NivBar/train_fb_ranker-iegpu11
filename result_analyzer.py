@@ -44,7 +44,7 @@ def plot_feature_correlations_with_means_medians(df, title):
     plt.tight_layout()
 
     # Save the plot to a file
-    file_name = title.replace(' ', '_') + '.png'
+    file_name = "output_images/" + title.replace(' ', '_') + '.png'
     plt.savefig(file_name)
     plt.show()
     plt.close()
@@ -52,8 +52,8 @@ def plot_feature_correlations_with_means_medians(df, title):
 
 
 def create_res_table():
-    # metrics = ["NDCG@1", "DCG@1", "RR@1", "ERR@1"]
-    metrics = ["ERR@1"]
+    metrics = ["NDCG@1", "DCG@1", "RR@1", "ERR@1"]
+    # metrics = ["ERR@1"]
     res_dir_base = "/lv_local/home/niv.b/train_fb_ranker/output_results/"
 
     rows = []
@@ -61,13 +61,19 @@ def create_res_table():
         for file in os.listdir(res_dir_base + metric):
             if file.endswith(".txt"):
                 with open(res_dir_base + metric + "/" + file, "r") as f:
-                    lines = f.readlines()
-                    # DCG@1   all   5.211154665140297
-                    test_metric, _, score = lines[-1].split()
-                    # MART2_NDCG@1.scaled_rank_promotion.DCG@1.txt
-                    model, test_measure, _ = file.split(".", 2)
-                    rows.append(
-                        {"model": model, "test_measure": test_measure, "test_metric": test_metric, "score": score})
+                    try:
+                        lines = f.readlines()
+                        # DCG@1   all   5.211154665140297
+                        test_metric, _, score = lines[-1].split()
+                        # MART2_NDCG@1.scaled_rank_promotion.DCG@1.txt
+                        file_parts = [part for part in file.split(".") if part != "txt"]
+                        model, test_measure = file_parts[0], file_parts[0].split('#')[1]
+                        # model, test_measure, _ = file.split(".", 2)
+                        # model, _, test_measure = file_parts[0], file_parts[1], file_parts[2]
+                        rows.append(
+                            {"model": model, "test_measure": test_measure, "test_metric": test_metric, "score": score})
+                    except Exception as e:
+                        print(f"error in file {file}: {e}")
 
     df = pd.DataFrame(rows)
     df.to_csv("measure_results.csv", index=False)
@@ -98,7 +104,8 @@ if __name__ == '__main__':
     gb_df = df.groupby(["test_measure", "test_metric"])
     for name, group in gb_df:
         print(name)
-        plot_feature_correlations_with_means_medians(group, str(name))
+        if not os.path.exists("output_images/" + str(name).replace(' ', '_') + '.png'):
+            plot_feature_correlations_with_means_medians(group, str(name))
         max_score = group.score.max()
         print(f"Max score: {max_score}")
         corr_values = group[['score', 'tree', 'leaf', 'shrinkage']].corr()['score']
@@ -108,16 +115,16 @@ if __name__ == '__main__':
         print('\n')
 
     tops = dict()
-    # k = 20
-    # for i in range(1, k+1):
 
     i = 1
-    while len(tops) < 30:
+    while len(tops) < 10:
         print("################## " + str(i) + " ##################")
+        # TODO: testing for same metric
+        df = df[df.test_metric == df.test_measure]
         gb_df_max = df.groupby(["test_measure", "test_metric"]).apply(
             lambda x: x.nlargest(i, 'score', keep='all')).sort_values('score', ascending=False)
 
-        print(gb_df_max)
+        # print(gb_df_max)
 
         # print(gb_df_max.model.value_counts().sort_values(ascending=False).head(3))
         temp_df = gb_df_max.model.value_counts().sort_values(ascending=False).reset_index()
@@ -128,20 +135,20 @@ if __name__ == '__main__':
             tops[row["model"]].append(i)
 
         # TODO: remove this for more models
-        if max_score > 0.0988: # current best score
-            if not os.path.exists(f"/lv_local/home/niv.b/train_fb_ranker/best_models/"):
-                os.makedirs(f"/lv_local/home/niv.b/train_fb_ranker/best_models/")
-            if os.path.exists(f"/lv_local/home/niv.b/train_fb_ranker/best_models/models_df.csv"):
-                df = pd.read_csv(f"/lv_local/home/niv.b/train_fb_ranker/best_models/models_df.csv")
-                gb_df_max = pd.concat([gb_df_max, df]).drop_duplicates()
 
-            gb_df_max.to_csv(
-                f"/lv_local/home/niv.b/train_fb_ranker/best_models/models_df.csv", index=False)
-            for model in tops.keys():
-                if not os.path.exists("/lv_local/home/niv.b/train_fb_ranker/harmonic1_model_" + model):
-                    shutil.copy2("/lv_local/home/niv.b/train_fb_ranker/trained_models/harmonic1_model_" + model,
-                                 "/lv_local/home/niv.b/train_fb_ranker/best_models/")
-        break
+        if not os.path.exists(f"/lv_local/home/niv.b/train_fb_ranker/best_models/"):
+            os.makedirs(f"/lv_local/home/niv.b/train_fb_ranker/best_models/")
+        if os.path.exists(f"/lv_local/home/niv.b/train_fb_ranker/best_models/models_df.csv"):
+            df = pd.read_csv(f"/lv_local/home/niv.b/train_fb_ranker/best_models/models_df.csv")
+            gb_df_max = pd.concat([gb_df_max, df]).drop_duplicates()
+
+        gb_df_max.to_csv(
+            f"/lv_local/home/niv.b/train_fb_ranker/best_models/models_df.csv", index=False)
+        for model in tops.keys():
+            if not os.path.exists("/lv_local/home/niv.b/train_fb_ranker/baseline_model_" + model):
+                shutil.copy2("/lv_local/home/niv.b/train_fb_ranker/trained_models/baseline_model_" + model,
+                             "/lv_local/home/niv.b/train_fb_ranker/best_models/")
+        # break
 
         i += 1
         print(f"tops no.: {len(tops)}")

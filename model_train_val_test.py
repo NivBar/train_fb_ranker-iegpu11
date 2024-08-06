@@ -3,7 +3,7 @@ import concurrent.futures
 import logging
 import subprocess
 import random
-
+import config as conf
 from tqdm import tqdm
 
 # Setting up logging
@@ -45,41 +45,37 @@ def run_commands(commands):
 
 
 if __name__ == "__main__":
-    is_train = False
+    is_train = conf.is_train
 
     if is_train:
         #### Training ####
-        file_path = '/lv_local/home/niv.b/train_fb_ranker/harmonic_features_1'
+        # file_path = '/lv_local/home/niv.b/train_fb_ranker/harmonic_features_1'
+        file_path = '/lv_local/home/niv.b/train_fb_ranker/baseline_dataset_train_r3_train_set'
 
         command_base = f"/lv_local/home/niv.b/jdk-21.0.1/bin/java -jar RankLib-2.18.jar -train {file_path}"
 
         model_dir = "/lv_local/home/niv.b/train_fb_ranker/trained_models"
-        prefix = "harmonic1_model_"
+        prefix = "baseline_model_"
 
-        # comm_dir = {
-        #     "LNET1": f"{command_base} -ranker 7 -save {model_dir}/{prefix}LNET1",
-        #     # Standard ListNet model using default settings.
-        #     "RNET1": f"{command_base} -ranker 1 -epoch 100 -layer 1 -node 10 -lr 0.00005 -save {model_dir}/{prefix}RNET1",
-        # }
+        # val_paths = ["./test_files/rank_test.txt", "./test_files/rank_promotion_test.txt",
+        #               "./test_files/scaled_rank_promotion_test.txt"]
 
-        #  "LMART9": f"{command_base} -ranker 6 -tree 1100 -leaf 22 -shrinkage 0.09 -tc 64 -mls 9 -estop 50 -metric2t NDCG@1 -save {model_dir}/{prefix}LMART9",
-        val_paths = ["./test_files/rank_test.txt", "./test_files/rank_promotion_test.txt",
-                      "./test_files/scaled_rank_promotion_test.txt"]
+        val_path = "baseline_dataset_train_r3_validation_set"
 
         comm_dir = {}
         index = 1
-        for tree in [800, 1000, 1200, 1400, 1600]:
-            for leaf in [6, 10, 14, 18, 22]:
-                for shrinkage in [0.01, 0.015, 0.02, 0.025, 0.03]:
-                    for v in val_paths:
-                        comm_dir[
-                            f"LM{index}"] = f"{command_base} -validate {v} -ranker 6 -tree {tree} -leaf {leaf} -shrinkage {shrinkage} " \
-                                            f"-metric2t TRAIN_METRIC -save SAVE_PATH"
-                        index += 1
+        for tree in conf.tree_vals:
+            for leaf in conf.leaf_vals:
+                for shrinkage in conf.shrinkage_vals:
+
+                    comm_dir[
+                        f"LM{index}"] = f"{command_base} -validate {val_path} -ranker 6 -tree {tree} -leaf {leaf} -shrinkage {shrinkage} " \
+                                        f"-metric2t TRAIN_METRIC -save SAVE_PATH"
+                    index += 1
 
         already_created = [x.split("_")[-1] for x in os.listdir('/lv_local/home/niv.b/train_fb_ranker/trained_models/')
                            if
-                           "harmonic1_model" in x]
+                           "baseline_model" in x]
 
         train_commands = dict()
 
@@ -98,11 +94,15 @@ if __name__ == "__main__":
     else:
         ##### Testing #####
         metrics = ["NDCG@1", "DCG@1", "RR@1", "ERR@1"]
-        test_paths = ["./test_files/rank_test.txt", "./test_files/rank_promotion_test.txt",
-                      "./test_files/scaled_rank_promotion_test.txt"]
+        # test_paths = ["./test_files/rank_test.txt", "./test_files/rank_promotion_test.txt",
+        #               "./test_files/scaled_rank_promotion_test.txt"]
+
+        test_paths = ["./test_files/baseline_dataset_test_r4.txt"]
+        assert os.path.exists(test_paths[0])
         test_commands = dict()
-        trained_models = [file for file in os.listdir('./trained_models') if "harmonic" in file]
+        trained_models = [file for file in os.listdir('./trained_models') if "baseline" in file]
         for metric in metrics:
+            run_command(f'rm ./output_results/{metric}/*')
             if not os.path.exists(f"./output_results/{metric}"):
                 os.makedirs(f"./output_results/{metric}")
             print(f"metric: {metric}:\n")

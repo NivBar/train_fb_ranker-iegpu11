@@ -100,12 +100,9 @@ if __name__ == "__main__":
 
     else:
         ##### Testing #####
-        # metrics = ["NDCG@1", "DCG@1", "RR@1", "ERR@1"]
-        metrics = ["ERR@1"]
-        # test_paths = ["./test_files/rank_test.txt", "./test_files/rank_promotion_test.txt",
-        #               "./test_files/scaled_rank_promotion_test.txt"]
-        test_paths = ["./test_files/rank_test.txt"]
-
+        metrics = ["NDCG@1", "DCG@1", "RR@1", "ERR@1"]
+        test_paths = ["./test_files/rank_test.txt", "./test_files/rank_promotion_test.txt",
+                      "./test_files/scaled_rank_promotion_test.txt"]
         test_commands = dict()
         trained_models = [file for file in os.listdir('./trained_models') if "harmonic" in file]
         for metric in metrics:
