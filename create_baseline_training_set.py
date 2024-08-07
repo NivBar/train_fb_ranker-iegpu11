@@ -5,28 +5,23 @@ import pickle
 from tqdm import tqdm
 from run_ranking_E5 import rank_documents
 
-relevant_base_round = 3
-state = 'train'
+relevant_base_round = 4
+state = 'test'
+# state = 'train'
 
 if state == 'test':
     create_test_summary = True
+    summ_rows = []
+    rel_pos = [2, 3, 4]
 else:
     create_test_summary = False
+    rel_pos = [2, 4]
 
 print(f"Creating {state} set for round {relevant_base_round}")
 
 df = pd.read_csv('tommy_data.csv')
-
-if state == 'train':
-    rel_pos = [2, 4]
-else:
-    rel_pos = [2, 3, 4]
 rel_df = df[(df['position'].isin(rel_pos)) & (df['round_no'] == relevant_base_round)]
-
 rows = list()
-
-if create_test_summary:
-    summ_rows = []
 
 for idx, row in tqdm(rel_df.iterrows(), total=len(rel_df)):
     top_df = df[(df.round_no == row.round_no) & (df.query_id == row.query_id) & (df.position < row.position)]

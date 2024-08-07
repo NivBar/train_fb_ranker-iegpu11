@@ -83,9 +83,9 @@ if __name__ == "__main__":
         metrics = sorted(metrics)
 
         for k, v in comm_dir.items():
-            if k in already_created:
-                continue
             for metric in metrics:
+                if f"{k}#{metric}" in already_created:
+                    continue
                 train_commands[(k, metric)] = v.replace("TRAIN_METRIC", metric).replace("SAVE_PATH",
                                                                                         f"{model_dir}/{prefix}{k}#{metric}")
         x = 1
