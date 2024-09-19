@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 warnings.filterwarnings("ignore")
 
 
-def process_model(model_name, model_dir, features_file_path, df):
+def process_model(model_name, model_dir, features_file_path, df, return_texts_df=False):
     predictions_file_path = f'/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/predictions_{model_name}.txt'
 
     if not os.path.exists(predictions_file_path):
@@ -22,14 +22,58 @@ def process_model(model_name, model_dir, features_file_path, df):
 
     df["score"] = score_column
     df['position'] = df.groupby("orig_docno")['score'].rank(method='first', ascending=False).astype(int)
+    if return_texts_df:
+        return df
     res_dict = df[df.position == 1][['rank', 'rank_promotion', 'scaled_rank_promotion']].mean().to_dict()
     res_dict["model"] = model_name.split("_")[-1]
 
     return res_dict
 
 
-def main(path, state):
-    df = pd.read_csv(path)
+def process_top_model(model_name, path_dict):
+    df = pd.read_csv(path_dict["summary"])
+    orig_df = pd.read_csv("tommy_data.csv")[["docno", "current_document", "position"]]
+    df["orig_docno"] = df.docno.apply(lambda x: x.split("$")[0])
+    predictions_file_path = f'/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/predictions_baseline_model_{model_name}.txt'
+    score_column = pd.read_csv(predictions_file_path, header=None, delimiter='\t', usecols=[2])
+    if int(score_column.isna().sum()) > 0:
+        print(f"ERROR in {model_name}: score column contains NaN values")
+
+    df["score"] = score_column
+    df['position'] = df.groupby("orig_docno")['score'].rank(method='first', ascending=False).astype(int)
+    df = df[df.position == 1].reset_index(drop=True).drop("position", axis=1)
+    df[["round_no", "query_id", "creator"]] = df.orig_docno.apply(
+        lambda x: pd.Series([int(x.split("-")[1]), int(x.split("-")[2]), x.split("-")[3]]))
+    df["username"] = "LMBOT1"
+    df = df.merge(orig_df, left_on="orig_docno", right_on="docno", how="left").rename(
+        columns={"current_document": "ref_doc"})
+
+    # bot_followup columns: round_no	query_id	creator	username	text
+    bot_followup = df[["round_no", "query_id", "creator", "username", "text"]]
+    bot_followup.to_csv(
+        "/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/LMBOT1_files/bot_followup_LMBOT1.csv",
+        index=False)
+
+    # feature_data columns: query_id	docno	rank	score
+    feature_data = df[["query_id", "orig_docno", "rank", "score"]].rename(columns={"orig_docno": "docno"})
+    feature_data.to_csv(
+        "/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/LMBOT1_files/feature_data_LMBOT1.csv",
+        index=False)
+
+    # feature_data_new columns: round_no	query_id	creator	username	docno	original_position	current_pos	score	previous_docno_str	pos_diff scaled_pos_diff
+    feature_data_new = df[
+        ["round_no", "query_id", "creator", "username", "orig_docno", "position", "rank", "rank_promotion",
+         "scaled_rank_promotion", "score"]].rename(
+        columns={"orig_docno": "docno", "position": "original_position", "rank": "current_pos",
+                 "rank_promotion": "pos_diff", "scaled_rank_promotion": "scaled_pos_diff"})
+    feature_data_new.to_csv(
+        "/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/LMBOT1_files/feature_data_new_LMBOT1.csv",
+        index=False)
+    x = 1
+
+
+def main(path_dict, state):
+    df = pd.read_csv(path_dict["summary"])
     df["orig_docno"] = df.docno.apply(lambda x: x.split("$")[0])
     models = [model for model in os.listdir("/lv_local/home/niv.b/train_fb_ranker/trained_models") if
               "baseline_model" in model]
@@ -37,7 +81,7 @@ def main(path, state):
     rows = []
 
     with ThreadPoolExecutor() as executor:
-        future_to_model = {executor.submit(process_model, model_name, "trained_models", "baseline_dataset_test_r4.txt",
+        future_to_model = {executor.submit(process_model, model_name, "trained_models", path_dict["embeddings"],
                                            df[["docno", "orig_docno", "rank", "rank_promotion",
                                                "scaled_rank_promotion"]]): model_name for model_name in models}
 
@@ -53,14 +97,36 @@ def main(path, state):
     res_df.sort_values("scaled_rank_promotion", ascending=True).to_csv(
         f"/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/baseline_model_choice_results_{state}.csv",
         index=False)
+    return res_df
 
 
 if __name__ == '__main__':
-    test_paths = "baseline_dataset_test_r4_summary.csv"
-    val_paths = "baseline_dataset_train_r3_validation_set.csv"
-    if not os.path.exists(test_path) or not os.path.exists(val_path):
-        raise Exception("Please make sure test and val paths exist")
-    if not os.path.exists("/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/baseline_model_choice_results_test.csv"):
-        main(test_path, "test")
-    if not os.path.exists("/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/baseline_model_choice_results_val.csv"):
-        main(val_path, "val")
+    test_paths = {"embeddings": "baseline_dataset_test_r4.txt", "summary": "baseline_dataset_test_r4_summary.csv"}
+    val_paths = {"embeddings": "baseline_dataset_train_r3_validation_set",
+                 "summary": "baseline_dataset_validation_r3_summary.csv"}
+    for path in list(test_paths.values()) + list(val_paths.values()):
+        if not os.path.exists(path):
+            print(f"ERROR: {path} does not exist")
+            exit(1)
+    if not os.path.exists(
+            "/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/baseline_model_choice_results_test.csv"):
+        res_df_test = main(test_paths, "test")
+    else:
+        res_df_test = pd.read_csv(
+            "/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/baseline_model_choice_results_test.csv")
+
+    if not os.path.exists(
+            "/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/baseline_model_choice_results_val.csv"):
+        res_df_val = main(val_paths, "val")
+    else:
+        res_df_val = pd.read_csv(
+            "/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/baseline_model_choice_results_val.csv")
+
+    res_df_full = pd.merge(res_df_val, res_df_test, on="model", suffixes=("_val", "_test")).sort_values(
+        ["scaled_rank_promotion_val", "scaled_rank_promotion_test"], ascending=[False, False])
+    res_df_full.to_csv(
+        "/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/baseline_model_choice_results_full.csv",
+        index=False)
+
+    process_top_model(res_df_full.model.iloc[0], test_paths)
+    # create_student_file(res_df_full.model.iloc[0], test_paths)

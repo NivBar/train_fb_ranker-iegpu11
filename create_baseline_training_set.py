@@ -17,6 +17,7 @@ else:
     create_test_summary = False
     rel_pos = [2, 4]
 
+
 print(f"Creating {state} set for round {relevant_base_round}")
 
 df = pd.read_csv('tommy_data.csv')
