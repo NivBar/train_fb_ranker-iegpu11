@@ -128,5 +128,6 @@ if __name__ == '__main__':
         "/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/baseline_model_choice_results_full.csv",
         index=False)
 
-    process_top_model(res_df_full.model.iloc[0], test_paths)
+    # process_top_model(res_df_full.model.iloc[0], test_paths)
+    process_top_model(res_df_full.model.iloc[0], val_paths)
     # create_student_file(res_df_full.model.iloc[0], test_paths)

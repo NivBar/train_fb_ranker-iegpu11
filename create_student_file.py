@@ -7,7 +7,7 @@ import pandas as pd
 from run_ranking_E5 import rank_documents
 from tqdm import tqdm
 
-relevant_base_round = 4
+relevant_base_round = 3
 summ_rows = []
 
 df = pd.read_csv('tommy_data.csv')
