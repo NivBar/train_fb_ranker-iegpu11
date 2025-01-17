@@ -3,6 +3,9 @@ import concurrent.futures
 import logging
 import subprocess
 import random
+
+import pandas as pd
+
 import config as conf
 from tqdm import tqdm
 
@@ -50,7 +53,7 @@ if __name__ == "__main__":
     if is_train:
         #### Training ####
         # file_path = '/lv_local/home/niv.b/train_fb_ranker/harmonic_features_1'
-        file_path = '/lv_local/home/niv.b/train_fb_ranker/baseline_dataset_train_r3_train_set'
+        file_path = '/lv_local/home/niv.b/train_fb_ranker/baseline_dataset_train_r23.txt'
 
         command_base = f"/lv_local/home/niv.b/jdk-21.0.1/bin/java -jar RankLib-2.18.jar -train {file_path}"
 
@@ -60,10 +63,13 @@ if __name__ == "__main__":
         # val_paths = ["./test_files/rank_test.txt", "./test_files/rank_promotion_test.txt",
         #               "./test_files/scaled_rank_promotion_test.txt"]
 
-        val_path = "baseline_dataset_train_r3_validation_set"
+        val_path = "baseline_dataset_validation_r4.txt"
 
         comm_dir = {}
         index = 1
+
+        sum_rows = []
+
         for tree in conf.tree_vals:
             for leaf in conf.leaf_vals:
                 for shrinkage in conf.shrinkage_vals:
@@ -71,15 +77,19 @@ if __name__ == "__main__":
                     comm_dir[
                         f"LM{index}"] = f"{command_base} -validate {val_path} -ranker 6 -tree {tree} -leaf {leaf} -shrinkage {shrinkage} " \
                                         f"-metric2t TRAIN_METRIC -save SAVE_PATH"
+
+                    sum_rows.append({"name": f"LM{index}", "tree": tree, "leaf": leaf, "shrinkage": shrinkage })
                     index += 1
 
+        sum_df = pd.DataFrame(sum_rows)
+        sum_df.to_csv("./output_results/trait_summary.csv")
         already_created = [x.split("_")[-1] for x in os.listdir('/lv_local/home/niv.b/train_fb_ranker/trained_models/')
                            if
                            "baseline_model" in x]
 
         train_commands = dict()
 
-        metrics = ["NDCG@1", "DCG@1", "RR@1", "ERR@1"]
+        metrics = conf.metrics
         metrics = sorted(metrics)
 
         for k, v in comm_dir.items():
@@ -93,7 +103,7 @@ if __name__ == "__main__":
 
     else:
         ##### Testing #####
-        metrics = ["NDCG@1", "DCG@1", "RR@1", "ERR@1"]
+        metrics = conf.metrics
         # test_paths = ["./test_files/rank_test.txt", "./test_files/rank_promotion_test.txt",
         #               "./test_files/scaled_rank_promotion_test.txt"]
 

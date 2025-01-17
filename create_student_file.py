@@ -7,7 +7,7 @@ import pandas as pd
 from run_ranking_E5 import rank_documents
 from tqdm import tqdm
 
-relevant_base_round = 3
+relevant_base_round = 5
 summ_rows = []
 
 df = pd.read_csv('tommy_data.csv')
@@ -16,7 +16,7 @@ old_df = df[df['round_no'] == relevant_base_round][["query_id", "username", "pos
 new_df = df[df['round_no'] == relevant_base_round + 1]
 
 bot_followup = pd.read_csv(
-    "/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/LMBOT1_files/bot_followup_LMBOT1.csv")
+    f"/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/LMBOT1_files/bot_followup_tommy{relevant_base_round}@LMBOT1.csv")
 
 query_legend = pd.read_csv("query_legend.csv")
 
@@ -46,5 +46,5 @@ for idx, row in tqdm(bot_followup.iterrows()):
 
 student_df = pd.concat(dfs)
 student_df.to_csv(
-    "/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/LMBOT1_files/LMBOT1_students.csv",
+    f"/lv_local/home/niv.b/train_fb_ranker/output_results/ranker_test_results/LMBOT1_files/students_tommy{relevant_base_round}@LMBOT1.csv",
     index=False)
